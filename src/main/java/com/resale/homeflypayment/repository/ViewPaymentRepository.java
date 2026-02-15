@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface ViewPaymentRepository extends JpaRepository<ViewPayment, Long> {
-    List<ViewPayment> findByCustomerIdAndOfferIdAndSapFiDocumentIsNotNull(
+    List<ViewPayment> findByCustomerIdAndOfferId(
             Integer customerId,
             Integer offerId
     );

@@ -45,9 +45,7 @@ public class PaymentService {
         this.paymobService = paymobService;
     }
 
-    public ResponseEntity<?> createPaymentRequestToBank(
-            CustomerPaymentRequest request) {
-
+    public ResponseEntity<?> createPaymentRequestToBank(CustomerPaymentRequest request) {
 
         GetOffersDTO offer =
                 offerFeignClient
@@ -55,43 +53,34 @@ public class PaymentService {
                         .getBody()
                         .getData();
 
-//        if(offer.getProjectCode().equals("O")||offer.getProjectCode().equals("U")||offer.getProjectCode().equals("J")) {
-            PayMobPaymentRequest paymobRequest = new PayMobPaymentRequest();
-            paymobRequest.setOfferId(request.getOfferId().toString());
-            paymobRequest.setAmount(request.getAmount());
-            paymobRequest.setFirstName(offer.getCustomerName());
-            paymobRequest.setLastName(offer.getCustomerName());
-            paymobRequest.setPhone(offer.getCustomerMobile());
-            paymobRequest.setCustomerEmail(offer.getCustomerEmail());
-            paymobRequest.setProjectCode(offer.getProjectCode());
+        PayMobPaymentRequest paymobRequest = new PayMobPaymentRequest();
+        paymobRequest.setOfferId(request.getOfferId().toString());
+        paymobRequest.setAmount(request.getAmount());
+        paymobRequest.setFirstName(offer.getCustomerName());
+        paymobRequest.setLastName(offer.getCustomerName());
+        paymobRequest.setPhone(offer.getCustomerMobile());
+        paymobRequest.setCustomerEmail(offer.getCustomerEmail());
+        paymobRequest.setProjectCode(offer.getProjectCode());
 
-            return ResponseEntity.ok(
-                    paymobService.createIntention(paymobRequest)
-            );
-//        }else{
-//            return ResponseEntity.badRequest().body("Please pay on Oman projects only");
-//        }
+        return ResponseEntity.ok(
+                paymobService.createIntention(paymobRequest)
+        );
     }
 
     public void createReceipt(Payment payment) {
 
-        String sapFiDocument = "FAIL";
-        ViewPayment viewPayment =
-                viewPaymentRepository.findByPaymentId(payment.getId());
-        
+        ViewPayment viewPayment = viewPaymentRepository.findByPaymentId(payment.getId());
+
         System.out.println(">> [Receipt] Starting receipt creation");
         System.out.println(">> [Receipt] Payment ID: " + payment.getId());
 
-        // SAP integration removed - set to FAIL
-        payment.setSapFiDocument(sapFiDocument);
         paymentRepository.save(payment);
-        System.out.println(">> [Receipt] Payment updated with SAP FI");
+        System.out.println(">> [Receipt] Payment saved");
 
         Receipt receipt = new Receipt();
         receipt.setPaymentId(payment.getId());
         receipt.setAmount(payment.getAmount());
         receipt.setOfferId(payment.getOfferId());
-        receipt.setSapFiDocument(sapFiDocument);
         receipt.setCustomerId(viewPayment.getCustomerId());
         receipt.setProjectId(viewPayment.getProjectId());
         receipt.setUnitId(viewPayment.getUnitId());
@@ -109,33 +98,8 @@ public class PaymentService {
         );
 
         offerFeignClient.updateOfferAfterPayment(dto);
-        System.out.println(">> [Receipt] Saved successfully with SAP FI: " + sapFiDocument);
+        System.out.println(">> [Receipt] Saved successfully");
     }
-    private ParsedUnitSapCode parseUnitSapCode(String unitSapCode) {
-
-        System.out.println(">> [Parser] Raw unit SAP code: " + unitSapCode);
-
-        if (unitSapCode == null || unitSapCode.length() < 12) {
-            throw new IllegalArgumentException("Invalid unit SAP code: " + unitSapCode);
-        }
-
-        String companyCode = unitSapCode.substring(0, 4);
-
-        // Business entity = everything between companyCode and last 8 digits
-        String businessEntity =
-                unitSapCode.substring(4, unitSapCode.length() - 8);
-
-        // Unit = last 8 digits, remove leading zeros
-        String unitRaw = unitSapCode.substring(unitSapCode.length() - 8);
-        String unit = String.valueOf(Integer.parseInt(unitRaw));
-
-        System.out.println(">> [Parser] companyCode = " + companyCode);
-        System.out.println(">> [Parser] businessEntity = " + businessEntity);
-        System.out.println(">> [Parser] unit = " + unit);
-
-        return new ParsedUnitSapCode(companyCode, businessEntity, unit);
-    }
-
 
     public ReturnObject<List<ViewPayment>> getAllCustomerPayments(
             Integer customerId,
@@ -144,13 +108,10 @@ public class PaymentService {
 
         List<ViewPayment> payments =
                 viewPaymentRepository
-                        .findByCustomerIdAndOfferIdAndSapFiDocumentIsNotNull(
-                                customerId,
-                                offerId
-                        );
+                        .findByCustomerIdAndOfferId(customerId, offerId);
 
         ReturnObject<List<ViewPayment>> response =
-                new ReturnObject<>("Customer payments loaded successfully", true,payments);
+                new ReturnObject<>("Customer payments loaded successfully", true, payments);
 
         response.setData(payments);
 
@@ -167,8 +128,7 @@ public class PaymentService {
                         new RuntimeException("Receipt not found for paymentId: " + paymentId)
                 );
 
-        ViewPayment viewPayment = viewPaymentRepository
-                .findByPaymentId(paymentId);
+        ViewPayment viewPayment = viewPaymentRepository.findByPaymentId(paymentId);
 
         if (viewPayment == null) {
             throw new RuntimeException("ViewPayment not found for paymentId: " + paymentId);
@@ -183,7 +143,6 @@ public class PaymentService {
         response.setUnitId(receipt.getUnitId());
         response.setProjectId(receipt.getProjectId());
         response.setAmount(receipt.getAmount());
-        response.setSapFiDocument(receipt.getSapFiDocument());
         response.setCreatedAt(receipt.getCreatedAt());
 
         // ===== ViewPayment =====
@@ -208,7 +167,6 @@ public class PaymentService {
 
         return response;
     }
-
 
     public ReturnObject<?> createBankTransfer(
             BankTransferRequest request,
@@ -237,12 +195,10 @@ public class PaymentService {
             transfer.setImageContentType(image.getContentType());
             transfer.setImageUrl(imagePath);
 
-            BankTransfers savedTransfer =
-                    bankTransfersRepository.saveAndFlush(transfer);
+            BankTransfers savedTransfer = bankTransfersRepository.saveAndFlush(transfer);
 
             System.out.println(">> Bank transfer saved with ID: " + savedTransfer.getId());
 
-            // 🔹 Call Offer Service AFTER save
             UpdateOfferPaymentDTO dto = new UpdateOfferPaymentDTO(
                     request.getOfferId(),
                     request.getAmount(),
@@ -252,8 +208,7 @@ public class PaymentService {
 
             System.out.println(">> Calling Offer Service with DTO: " + dto);
 
-            ResponseEntity<?> offerResponse =
-                    offerFeignClient.updateOfferAfterPayment(dto);
+            ResponseEntity<?> offerResponse = offerFeignClient.updateOfferAfterPayment(dto);
 
             System.out.println(">> Offer Service response status: " + offerResponse.getStatusCode());
 
@@ -277,10 +232,8 @@ public class PaymentService {
             );
         }
     }
-    private void validateCreateRequest(
-            BankTransferRequest request,
-            MultipartFile image
-    ) {
+
+    private void validateCreateRequest(BankTransferRequest request, MultipartFile image) {
 
         if (request.getOfferId() <= 0)
             throw new IllegalArgumentException("Invalid offerId");
@@ -306,6 +259,7 @@ public class PaymentService {
         if (image == null || image.isEmpty())
             throw new IllegalArgumentException("Transfer image is required");
     }
+
     public ReturnObject<BankTransferResponse> getBankTransferById(Integer bankTransferId) {
 
         System.out.println("➡️ Fetching bank transfer by ID: " + bankTransferId);
@@ -327,14 +281,11 @@ public class PaymentService {
         );
     }
 
-
-    public ReturnObject<List<BankTransferByOfferResponse>>
-    getBankTransfersByOfferIds(List<Integer> offerIds) {
+    public ReturnObject<List<BankTransferByOfferResponse>> getBankTransfersByOfferIds(List<Integer> offerIds) {
 
         System.out.println("➡️ Fetching bank transfers for offers: " + offerIds);
 
-        List<BankTransfers> transfers =
-                bankTransfersRepository.findAllByOfferIdIn(offerIds);
+        List<BankTransfers> transfers = bankTransfersRepository.findAllByOfferIdIn(offerIds);
 
         Map<Integer, BankTransfers> map =
                 transfers.stream()
@@ -349,12 +300,9 @@ public class PaymentService {
                             BankTransfers t = map.get(offerId);
                             if (t == null) return null;
 
-                            BankTransferByOfferResponse r =
-                                    new BankTransferByOfferResponse();
+                            BankTransferByOfferResponse r = new BankTransferByOfferResponse();
                             r.setOfferId(offerId);
-                            r.setBankTransfer(
-                                    BankTransferResponse.fromEntity(t)
-                            );
+                            r.setBankTransfer(BankTransferResponse.fromEntity(t));
                             return r;
                         })
                         .filter(Objects::nonNull)
@@ -366,10 +314,4 @@ public class PaymentService {
                 response
         );
     }
-
-
-
-
 }
-
-
