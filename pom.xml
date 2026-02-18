@@ -15,10 +15,10 @@
     </parent>
 
     <groupId>com.example</groupId>
-    <artifactId>homefly-payment</artifactId>
+    <artifactId>loveResale-payment</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>homefly-payment</name>
-    <description>homefly-payment</description>
+    <name>loveResale-payment</name>
+    <description>loveResale-payment</description>
 
     <!-- Properties -->
     <properties>
