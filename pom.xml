@@ -149,6 +149,7 @@
 
     <!-- Build -->
     <build>
+        <finalName>app</finalName>
         <plugins>
             <!-- Maven Compiler Plugin -->
             <plugin>
